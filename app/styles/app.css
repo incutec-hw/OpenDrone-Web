@@ -333,10 +333,14 @@ html {
    of the Canvas (not the wordmark), so the wordmark always reads
    bright. Fades out once the scene reports ready and the minimum
    splash beat has elapsed. */
+/* Holds the scene back while the wordmark reads, then clears. Was 0.9 opaque,
+   which hid the whole load: the drone now assembles behind this as its six GLBs
+   land, and that is the progress indicator, so it has to be visible through it.
+   0.55 keeps the wordmark dominant and still shows the build-up. */
 .scene-dim {
   position: absolute;
   inset: 0;
-  background-color: rgba(13, 13, 16, 0.9);
+  background-color: rgba(13, 13, 16, 0.55);
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.7s ease-out 0.1s;
@@ -511,6 +515,13 @@ html {
    (splash) to bottom-left-small (settled). Anchor is the settled
    position; the splash state is a transform that moves+scales it up
    to viewport center so the motion is a single tween, not a swap. */
+/* One shared centreline for the hero's bottom strip. Everything that lives
+   down there (wordmark + GitHub mark, progress rail, Shop button) centres on
+   the settled wordmark's midline: 2.5rem inset + half the wordmark height. */
+.homepage {
+  --hero-strip-mid: calc(2.5rem + clamp(2.5rem, 5vw, 4.5rem) / 2);
+}
+
 .hero-wordmark {
   position: absolute;
   bottom: 2.5rem;
@@ -777,15 +788,15 @@ html {
   pointer-events: auto;
 }
 
-/* GitHub mark — bare logo (no circle/pod), vertically centred on the left edge
-   of the screen. Drops in once the splash settles and stays put through the
-   scroll. `margin-top` does the vertical centring so the drop-in
-   `transform: translateY()` is free to animate. */
+/* GitHub mark: bare logo (no circle/pod), sitting just right of the settled
+   wordmark in the bottom-left corner, centred on the strip line. The left
+   offset is the wordmark's own geometry: 2.5rem inset + its width (height x
+   the SVG viewBox ratio 2472/467.64, about 5.29) + a gap. Rises in with the
+   other bottom islands once the splash settles. */
 .hero-github {
   position: absolute;
-  top: 50%;
-  margin-top: -32px; /* half of height — vertical centre on the left edge */
-  left: var(--rail-gutter);
+  bottom: calc(var(--hero-strip-mid, 76px) - 32px);
+  left: calc(2.5rem + clamp(2.5rem, 5vw, 4.5rem) * 5.29 + 1.75rem);
   z-index: 25;
   display: inline-flex;
   align-items: center;
@@ -795,9 +806,9 @@ html {
   width: 64px;
   height: 64px;
   color: var(--color-text-muted);
-  /* Hidden resting state — parked off the left edge. The is-visible class
-     glides it in from there. */
-  transform: translateX(-160%);
+  /* Hidden resting state: parked below the bottom edge. The is-visible
+     class glides it up from there. */
+  transform: translateY(150%);
   opacity: 0;
   transition: color 0.2s ease;
   pointer-events: none;
@@ -805,7 +816,7 @@ html {
 .hero-github.is-visible {
   opacity: 1;
   pointer-events: auto;
-  animation: island-splash-left 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: island-splash-bottom 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .hero-github:hover {
   color: var(--color-gold);
@@ -938,10 +949,9 @@ html {
    revealed card re-enable their own pointer events. */
 .hero-buy {
   position: absolute;
-  /* 4rem, not 2.5rem: keeps the Shop button's corner clear of the fixed
-     OPENING SOON pill (bottom/right 16px). Can drop back to 2.5rem at
-     launch when the pill goes away. */
-  bottom: 4rem;
+  /* The Shop button (~52px tall: 2rem padding + ~20px line) centres on the
+     bottom strip's shared line, same as the wordmark and the rail. */
+  bottom: calc(var(--hero-strip-mid, 76px) - 26px);
   right: 2.5rem;
   z-index: 20;
   display: flex;
@@ -1129,7 +1139,8 @@ html.light .hero-reveal-soon {
    bobbing double-chevron) to read as a downward invitation. */
 .hero-scroll-hint {
   position: absolute;
-  bottom: 2.2rem;
+  /* Below the progress rail, which sits on the bottom strip's shared line. */
+  bottom: 0.75rem;
   left: 50%;
   transform: translate(-50%, 0);
   z-index: 20;
@@ -15157,4 +15168,227 @@ body:has(.buy-rail.is-pinned.is-mobile) .placeholder-banner {
     height: 100%;
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Hero prototype (/hero-preview). Scoped under .hp so it cannot leak into the
+   live homepage while the two are being compared.
+   --------------------------------------------------------------------------- */
+/* The walkthrough is a layer inside the hero's sticky pane, not a section of
+   its own: the wordmark, size selector and buy bubble sit over the same drone.
+   Pointer events are re-enabled here because the pane itself sets none. */
+.hp-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.hp-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  pointer-events: none;
+}
+/* Chapter rail, horizontal along the bottom centre. It was vertical on the left
+   originally, which put it straight on top of the hero's centred GitHub mark.
+   Horizontal also survives short viewports, where a 46vh vertical rail collides
+   with both the size selector above it and the wordmark below. */
+.hp-rail {
+  position: absolute;
+  left: 50%;
+  /* Centred on the bottom strip's shared line (the 2px track straddles it). */
+  bottom: calc(var(--hero-strip-mid, 93px) - 1px);
+  transform: translateX(-50%);
+  width: min(440px, 42vw);
+  height: 2px;
+  background: color-mix(in srgb, var(--color-text-dim) 30%, transparent);
+  border-radius: 2px;
+  z-index: 22;
+}
+.hp-rail-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: none;
+}
+.hp-dot {
+  position: absolute;
+  top: -4px;
+  margin-left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  border: 1px solid color-mix(in srgb, var(--color-text-dim) 50%, transparent);
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+}
+/* No text on the rail: the dots and the fill say how far, the copy panel says
+   where. Beat names stay on the buttons as aria-labels. */
+.hp-dot.done { background: color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.hp-dot.on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  transform: scale(1.4);
+}
+/* Per-beat copy, upper right. NOT vertically centred: the buy bubble occupies
+   the bottom right and grew tall enough to bury this entirely once all three
+   product cards revealed. Top-anchored also keeps the title in the same place
+   as the note length changes between beats. */
+.hp-copy {
+  position: absolute;
+  right: clamp(20px, 5vw, 96px);
+  top: clamp(120px, 19vh, 210px);
+  max-width: min(34ch, 32vw);
+  animation: hp-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes hp-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.hp-title {
+  font-size: clamp(1.6rem, 3.4vw, 2.7rem);
+  line-height: 1.08;
+  margin: 0 0 0.7rem;
+  color: var(--color-text);
+}
+.hp-note {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.hp-hint {
+  position: absolute;
+  left: 50%;
+  /* Below the rail, which now sits on the bottom strip's shared line. */
+  bottom: 10px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  animation: hp-bob 2.4s ease-in-out infinite;
+}
+@keyframes hp-bob { 0%,100% {opacity:.4; transform:translate(-50%,0);} 50% {opacity:.9; transform:translate(-50%,4px);} }
+.hp-after {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+  padding: 4rem 1rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-copy, .hp-hint { animation: none; }
+}
+@media (max-width: 720px) {
+  .hp-copy { right: 16px; left: 16px; max-width: none; top: auto; bottom: 130px; }
+}
+
+/* Every beat's copy lives in the DOM for crawlers and assistive tech. It is
+   visually hidden while the 3D drives the presentation, and becomes the actual
+   content when the scene is not loaded (small screens, reduced motion). */
+.hp-fallback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hp-stage:not(:has(canvas)) .hp-fallback {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+  display: grid;
+  gap: 1.75rem;
+  max-width: 60ch;
+  margin: 0 auto;
+  padding: 6rem 1.25rem;
+}
+.hp-stage:not(:has(canvas)) { height: auto; min-height: 60vh; }
+.hp-stage:not(:has(canvas)) .hp-rail,
+.hp-stage:not(:has(canvas)) .hp-copy { display: none; }
+.hp-fallback h3 { font-size: 1.15rem; margin: 0 0 0.3rem; color: var(--color-text); }
+.hp-fallback p { margin: 0; color: var(--color-text-muted); }
+.hp-dot { padding: 0; cursor: pointer; }
+.hp-dot:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
+/* Named load stage under the splash wordmark. The assembly arrives as several
+   files and the drone visibly builds up behind this, so it reads as "the
+   airframe is here, the boards are coming" instead of an anonymous spinner. */
+/* The splash's manifest board: one line per streamed piece of the assembly,
+   under the centred wordmark. Pending lines sit dim, the arriving line
+   carries the accent marker, landed lines tick off. It reads as a build
+   sheet being checked off while the drone assembles behind the dim layer. */
+.hero-load-manifest {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 5.5rem);
+  transform: translateX(-50%);
+  z-index: 26;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  pointer-events: none;
+  animation: hero-load-manifest-in 0.5s ease both;
+}
+@keyframes hero-load-manifest-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.hero-load-piece {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: color-mix(in srgb, var(--color-text-dim) 45%, transparent);
+  transition: color 0.3s ease;
+}
+.hero-load-piece__mark {
+  width: 1em;
+  text-align: center;
+}
+.hero-load-piece.is-active {
+  color: var(--color-text-muted);
+}
+.hero-load-piece.is-active .hero-load-piece__mark {
+  color: var(--color-accent);
+  animation: hero-load-piece-pulse 0.9s ease-in-out infinite;
+}
+.hero-load-piece.is-done {
+  color: var(--color-text-dim);
+}
+.hero-load-piece.is-done .hero-load-piece__mark {
+  color: var(--color-accent);
+}
+@keyframes hero-load-piece-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-load-manifest { animation: none; }
+  .hero-load-piece.is-active .hero-load-piece__mark { animation: none; }
 }

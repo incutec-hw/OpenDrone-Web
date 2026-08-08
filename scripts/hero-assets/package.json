@@ -2,5 +2,13 @@
   "name": "hero-assets",
   "private": true,
   "type": "module",
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "description": "Offline 3D asset pipeline: Onshape assembly + KiCad boards -> web GLBs. Not part of the site build.",
+  "dependencies": {
+    "@gltf-transform/core": "4.3.0",
+    "@gltf-transform/extensions": "4.3.0",
+    "@gltf-transform/functions": "4.3.0",
+    "draco3dgltf": "1.5.7",
+    "meshoptimizer": "1.1.1"
+  }
 }

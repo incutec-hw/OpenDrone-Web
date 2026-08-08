@@ -1,0 +1,1334 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="cache-control" content="no-store, must-revalidate">
+<meta http-equiv="expires" content="0">
+<title>OpenDrone hero studio</title>
+<style>
+  :root{--bg:#0a0c0f;--panel:#14181d;--line:#242b33;--ink:#e9e7e2;--dim:#8e98a3;--gold:#d8a13a}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  canvas{display:block}
+  #ui{position:fixed;top:0;right:0;width:320px;height:100%;background:var(--panel);
+    border-left:1px solid var(--line);overflow-y:auto;padding:14px 14px 40px;box-sizing:border-box}
+  details{border-bottom:1px solid var(--line);margin:0}
+  details[open]{padding-bottom:8px}
+  summary{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+    font-weight:600;padding:9px 0;cursor:pointer;list-style:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:'+ ';color:var(--dim)}
+  details[open]>summary::before{content:'- '}
+  .grp{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:8px 0 2px}
+  .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .row label{flex:0 0 82px;color:var(--dim);font-size:11px}
+  .row input[type=range]{flex:1;min-width:0;accent-color:var(--gold)}
+  .row .val{flex:0 0 36px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px}
+  .row input[type=color]{width:32px;height:20px;border:1px solid var(--line);background:none;padding:0}
+  select,button{background:#1b2027;color:var(--ink);border:1px solid var(--line);
+    border-radius:4px;padding:5px 8px;font:inherit;cursor:pointer}
+  select{width:100%}
+  button:hover{border-color:var(--gold)}
+  button.on{background:var(--gold);color:#111;border-color:var(--gold)}
+  .btns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  #stage{position:fixed;left:20px;bottom:18px;z-index:5;color:var(--dim);max-width:42ch}
+  #stage b{color:var(--ink);font-size:18px;display:block;font-weight:600}
+  #stage i{font-style:normal;color:var(--gold);font-size:11px}
+  #load{position:fixed;left:20px;top:18px;z-index:5;color:var(--dim)}
+  #bar{width:190px;height:2px;background:#222;margin-top:6px}
+  #bar>i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s}
+  #err{position:fixed;left:20px;bottom:86px;color:#ff8574;white-space:pre;z-index:6;font-size:11px}
+  .hint{color:#5f6a75;font-size:10px;margin:1px 0 7px}
+  #rail{position:fixed;left:22px;top:50%;transform:translateY(-50%);width:2px;height:220px;
+    background:#20262d;z-index:6;border-radius:2px}
+  #railfill{position:absolute;left:0;top:0;width:100%;background:var(--gold);border-radius:2px;height:0}
+  #rail .dot{position:absolute;left:-3px;width:8px;height:8px;border-radius:50%;
+    background:#20262d;border:1px solid #2c343d;transform:translateY(-4px);transition:background .2s}
+  #rail .dot.on{background:var(--gold);border-color:var(--gold)}
+  #rail .dot.done{background:#6b5620}
+  #railmark{position:absolute;left:-4px;width:10px;height:10px;border-radius:50%;
+    background:var(--ink);box-shadow:0 0 8px rgba(216,161,58,.8);transform:translateY(-5px);top:0}
+  #railhint{position:fixed;left:14px;top:calc(50% + 130px);z-index:6;color:#5f6a75;font-size:9px;
+    letter-spacing:.18em;text-transform:uppercase}
+  #partslist{max-height:260px;overflow-y:auto;font-size:10px}
+  .prow{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid #1c2229}
+  .prow.orphan{color:#ff9b8a}
+  .pn{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pc{flex:0 0 62px;color:var(--gold);overflow:hidden}
+  .pb{flex:0 0 54px;color:var(--dim);overflow:hidden}
+  .pt{flex:0 0 34px;text-align:right;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="load">loading drone.glb<div id="bar"><i></i></div></div>
+<div id="stage"></div>
+<div id="rail"><div id="railfill"></div><div id="railmark"></div></div>
+<div id="railhint">scroll</div>
+<div id="err"></div>
+<div id="ui">
+  <details open><summary>Look presets</summary>
+    <div class="btns"><select id="preset">
+      <option value="studio">Studio (neutral)</option>
+      <option value="dramatic">Dramatic (hard key, deep shadow)</option>
+      <option value="soft">Soft (even, product catalogue)</option>
+      <option value="technical">Technical (flat, max legibility)</option>
+    </select></div>
+    <div class="hint">a starting point; every value below stays editable</div>
+    <div class="row"><label>exposure</label><input type="range" id="exp" min="0.2" max="3" step="0.02" value="1"><span class="val" id="expv"></span></div>
+    <div class="row"><label>environment</label><input type="range" id="genv" min="0" max="2.5" step="0.02" value="0.3"><span class="val" id="genvv"></span></div>
+    <div class="row"><label>ambient</label><input type="range" id="hemii" min="0" max="2" step="0.01" value="0"><span class="val" id="hemiiv"></span></div>
+    <div class="row"><label>background</label><input type="color" id="bgc" value="#0a0c0f"></div>
+  </details>
+
+  <details><summary>Key light</summary>
+    <div class="row"><label>power</label><input type="range" id="keyI" min="0" max="12" step="0.05" value="2.6"><span class="val" id="keyIv"></span></div>
+    <div class="row"><label>azimuth</label><input type="range" id="keyA" min="0" max="360" step="1" value="89"><span class="val" id="keyAv"></span></div>
+    <div class="row"><label>elevation</label><input type="range" id="keyE" min="-80" max="88" step="1" value="46"><span class="val" id="keyEv"></span></div>
+    <div class="row"><label>colour</label><input type="color" id="keyC" value="#e69728"></div>
+  </details>
+
+  <details><summary>Fill light</summary>
+    <div class="row"><label>power</label><input type="range" id="filI" min="0" max="12" step="0.05" value="0.55"><span class="val" id="filIv"></span></div>
+    <div class="row"><label>azimuth</label><input type="range" id="filA" min="0" max="360" step="1" value="135"><span class="val" id="filAv"></span></div>
+    <div class="row"><label>elevation</label><input type="range" id="filE" min="-80" max="88" step="1" value="36"><span class="val" id="filEv"></span></div>
+    <div class="row"><label>colour</label><input type="color" id="filC" value="#e5f7de"></div>
+  </details>
+
+  <details><summary>Rim light</summary>
+    <div class="row"><label>power</label><input type="range" id="rimI" min="0" max="12" step="0.05" value="2.2"><span class="val" id="rimIv"></span></div>
+    <div class="row"><label>azimuth</label><input type="range" id="rimA" min="0" max="360" step="1" value="283"><span class="val" id="rimAv"></span></div>
+    <div class="row"><label>elevation</label><input type="range" id="rimE" min="-80" max="88" step="1" value="31"><span class="val" id="rimEv"></span></div>
+    <div class="row"><label>colour</label><input type="color" id="rimC" value="#cfe2ff"></div>
+  </details>
+
+  <details><summary>Bounce (from below)</summary>
+    <div class="row"><label>power</label><input type="range" id="bncI" min="0" max="4" step="0.02" value="0.3"><span class="val" id="bncIv"></span></div>
+    <div class="row"><label>colour</label><input type="color" id="bncC" value="#7d7417"></div>
+    <div class="hint">keeps the underside off dead black</div>
+  </details>
+
+  <details><summary>Spotlight on the shown part</summary>
+    <div class="row"><label>power</label><input type="range" id="spot" min="0" max="80" step="0.5" value="22.5"><span class="val" id="spotv"></span></div>
+    <div class="row"><label>beam</label><input type="range" id="beam" min="0" max="2" step="0.02" value="0.44"><span class="val" id="beamv"></span></div>
+    <div class="row"><label>cone angle</label><input type="range" id="spotang" min="6" max="60" step="1" value="26"><span class="val" id="spotangv"></span></div>
+    <div class="row"><label>softness</label><input type="range" id="spotsoft" min="0" max="1" step="0.02" value="0.6"><span class="val" id="spotsoftv"></span></div>
+    <div class="row"><label>side angle</label><input type="range" id="spotside" min="-90" max="90" step="1" value="35"><span class="val" id="spotsidev"></span></div>
+    <div class="row"><label>height</label><input type="range" id="spoth" min="0" max="1.4" step="0.02" value="0.48"><span class="val" id="spothv"></span></div>
+    <div class="hint">a light straight on a part flattens it; rake it from the side to keep contrast</div>
+    <div class="row"><label>strike</label><input type="range" id="strike" min="0.01" max="0.5" step="0.01" value="0.27"><span class="val" id="strikev"></span></div>
+    <div class="hint">fraction of the hold the beam takes to reach full length; it only fires once the part has arrived, and cuts as it leaves, which is the cue for the text on the right</div>
+    <div class="row"><label>darken rest</label><input type="range" id="fade" min="0" max="1" step="0.005" value="1"><span class="val" id="fadev"></span></div>
+    <div class="row"><label>dim lights</label><input type="range" id="dim" min="0" max="1" step="0.01" value="0.28"><span class="val" id="dimv"></span></div>
+    <div class="row"><label>shrink drone</label><input type="range" id="shrink" min="0.2" max="1" step="0.01" value="0.55"><span class="val" id="shrinkv"></span></div>
+    <div class="row"><label>board tilt</label><input type="range" id="btilt" min="-0.4" max="0.6" step="0.01" value="0.16"><span class="val" id="btiltv"></span></div>
+    <div class="row"><label>stage left</label><input type="range" id="stagex" min="0" max="0.6" step="0.01" value="0.28"><span class="val" id="stagexv"></span></div>
+  </details>
+
+  <details><summary>Sequence</summary>
+    <div class="btns"><button id="play" class="on">pause</button><button id="prev">&larr;</button><button id="next">&rarr;</button></div>
+    <div class="btns"><select id="jump"></select></div>
+    <div class="row"><label>speed</label><input type="range" id="speed" min="0.25" max="2.5" step="0.05" value="1.5"><span class="val" id="speedv"></span></div>
+    <div class="row"><label>hold</label><input type="range" id="hold" min="0.6" max="10" step="0.1" value="8.8"><span class="val" id="holdv"></span></div>
+    <div class="row"><label>travel</label><input type="range" id="travel" min="0.3" max="3" step="0.05" value="2.65"><span class="val" id="travelv"></span></div>
+    <div class="row"><label>part size</label><input type="range" id="fill" min="0.15" max="0.95" step="0.01" value="0.6"><span class="val" id="fillv"></span></div>
+    <div class="row"><label>inspect spin</label><input type="range" id="spin" min="0" max="1.5" step="0.02" value="0.06"><span class="val" id="spinv"></span></div>
+    <div class="row"><label>auto-orbit</label><input type="range" id="orbit" min="0" max="0.3" step="0.005" value="0.195"><span class="val" id="orbitv"></span></div>
+    <div class="row"><label>prop rad/s</label><input type="range" id="rpm" min="0" max="20" step="0.25" value="1.25"><span class="val" id="rpmv"></span></div>
+    <div class="row"><label>scroll spring</label><input type="range" id="sfreq" min="0.3" max="4" step="0.05" value="1.1"><span class="val" id="sfreqv"></span></div>
+    <div class="row"><label>scroll gain</label><input type="range" id="sgain" min="0.0004" max="0.006" step="0.0002" value="0.0016"><span class="val" id="sgainv"></span></div>
+    <div class="row"><label>stop magnet</label><input type="range" id="smag" min="0" max="0.4" step="0.01" value="0.14"><span class="val" id="smagv"></span></div>
+    <div class="row"><label>commit at</label><input type="range" id="scommit" min="0.08" max="0.6" step="0.01" value="0.28"><span class="val" id="scommitv"></span></div>
+    <div class="hint">how far into a transition a flick has to carry before it advances instead of falling back</div>
+    <div class="row"><label>prop handed</label><input type="range" id="hand" min="-1" max="1" step="2" value="-1"><span class="val" id="handv"></span></div>
+  </details>
+
+  <details open><summary>Inspect (click a part)</summary>
+    <div class="hint" id="pickinfo">click any part in the view</div>
+  </details>
+
+  <details><summary>Camera</summary>
+    <div class="row"><label>free look</label><input type="range" id="camfree" min="0" max="1" step="1" value="0"><span class="val" id="camfreev"></span></div>
+    <div class="hint">1 hands the camera to the mouse and stops all automatic motion</div>
+    <div class="row"><label>distance</label><input type="range" id="camdist" min="1.5" max="6" step="0.05" value="2.15"><span class="val" id="camdistv"></span></div>
+    <div class="row"><label>height</label><input type="range" id="camheight" min="-0.5" max="1.5" step="0.01" value="0.5"><span class="val" id="camheightv"></span></div>
+    <div class="row"><label>height on PCB</label><input type="range" id="camheightb" min="-0.5" max="2.5" step="0.01" value="0.72"><span class="val" id="camheightbv"></span></div>
+    <div class="hint">the camera rises during a board beat so a flat PCB reads frontally instead of edge-on; eases in and out with the part</div>
+    <div class="row"><label>dolly on show</label><input type="range" id="camdolly" min="0" max="1.5" step="0.01" value="0.92"><span class="val" id="camdollyv"></span></div>
+    <div class="hint">dolly was 0.25 and never settled; 0 keeps the framing still</div>
+  </details>
+
+  <details><summary>Parts audit</summary>
+    <div class="btns"><input id="pfilter" placeholder="filter..." style="flex:1;background:#1b2027;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:4px 6px;font:inherit"></div>
+    <div class="hint" id="auditsum"></div>
+    <div id="partslist"></div>
+  </details>
+
+  <details><summary>Materials</summary>
+    <div class="btns"><select id="mat"></select></div>
+    <div class="hint" id="matinfo"></div>
+    <div class="row"><label>metalness</label><input type="range" id="met" min="0" max="1" step="0.01"><span class="val" id="metv"></span></div>
+    <div class="row"><label>roughness</label><input type="range" id="rgh" min="0.02" max="1" step="0.01"><span class="val" id="rghv"></span></div>
+    <div class="row"><label>reflect</label><input type="range" id="env" min="0" max="2" step="0.01"><span class="val" id="envv"></span></div>
+    <div class="row"><label>saturate</label><input type="range" id="sat" min="0.5" max="2.2" step="0.02" value="1"><span class="val" id="satv"></span></div>
+    <div class="row"><label>tint</label><input type="color" id="col"><button id="colreset" style="padding:2px 6px">reset</button></div>
+  </details>
+
+  <details><summary>Export</summary>
+    <div class="btns"><button id="dump">copy settings JSON</button></div>
+    <div class="hint" id="dumpmsg"></div>
+  </details>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+const errEl = document.getElementById('err');
+const say = (m) => { errEl.textContent += m + '\n'; };
+addEventListener('error', (e) => say(e.message));
+
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0c0f);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.3;
+
+const camera = new THREE.PerspectiveCamera(34, 1, 0.002, 60);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.07;
+
+// Three-point rig, each light aimed by azimuth/elevation rather than a hard
+// coded vector, so the whole thing is tunable from the panel. Directional
+// lights are placed on a sphere around the subject; only direction matters.
+function aim(light, azDeg, elDeg, radius) {
+  const az = THREE.MathUtils.degToRad(azDeg), el = THREE.MathUtils.degToRad(elDeg);
+  light.position.set(
+    radius * Math.cos(el) * Math.cos(az),
+    radius * Math.sin(el),
+    radius * Math.cos(el) * Math.sin(az),
+  );
+  light.target.position.set(0, 0, 0);
+}
+const RIG = {
+  key:  {az:  89, el: 46, intensity: 2.6,  color: '#e69728'},
+  fill: {az: 135, el: 36, intensity: 0.55, color: '#e5f7de'},
+  rim:  {az: 283, el: 31, intensity: 2.2,  color: '#cfe2ff'},
+};
+// Ambient starts at zero on purpose. Unshadowed omnidirectional fill is the
+// single biggest flattener: it lights every face equally and does an
+// environment's job badly. The PMREM environment replaces it.
+const hemi = new THREE.HemisphereLight(0x94b8e8, 0x181410, 0.0); scene.add(hemi);
+const keyL  = new THREE.DirectionalLight(RIG.key.color,  RIG.key.intensity);
+const fillL = new THREE.DirectionalLight(RIG.fill.color, RIG.fill.intensity);
+const rimL  = new THREE.DirectionalLight(RIG.rim.color,  RIG.rim.intensity);
+for (const [name, l] of [['key',keyL],['fill',fillL],['rim',rimL]]) {
+  scene.add(l); scene.add(l.target); aim(l, RIG[name].az, RIG[name].el, 1);
+}
+// Travels with the showcased part so it stays lit while the airframe dims.
+// Cold, very dim uplight so the underside never goes fully dead.
+const bncL = new THREE.DirectionalLight(0x7d7417, 0.30);
+bncL.position.set(0.05, -0.5, 0.15); scene.add(bncL); scene.add(bncL.target);
+const spotL = new THREE.SpotLight(0xffffff, 18, 0, 0.5, 0.7, 2);
+scene.add(spotL); scene.add(spotL.target);
+// A spotlight cone, open-ended and long enough that its rim falls outside the
+// viewport, so you never see the circle where the geometry stops.
+const beamMat = new THREE.MeshBasicMaterial({
+  color: 0xbcd8ff, transparent: true, opacity: 0, depthWrite: false,
+  blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+const beam = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 64, 1, true), beamMat);
+beam.frustumCulled = false; beam.renderOrder = 2; beam.visible = false; scene.add(beam);
+const BASE = {hemi: hemi.intensity, key: keyL.intensity, rim: rimL.intensity,
+              fill: fillL.intensity, bounce: bncL.intensity};
+
+// Onshape Z-up -> three Y-up. `pivot` scales the drone about its own centre so
+// the airframe can shrink into the background without dragging the showcased
+// part with it; `rig` re-centres the geometry inside that pivot.
+const world = new THREE.Group(); world.rotation.x = -Math.PI / 2; scene.add(world);
+const pivot = new THREE.Group(); world.add(pivot);
+const rig = new THREE.Group(); pivot.add(rig);
+
+/* ---------------------------------------------------------------- MATERIALS
+ * The CAD colour is the truth and is kept; a profile sets only the surface
+ * response. Onshape's appearance colours are the real part colours (the motor
+ * really is green and gold anodised, the TPU prints really are green and gold
+ * filament), so colour must never be used to infer material.
+ */
+const PROFILES = {
+  carbon:   {label:'carbon fibre', tint:'#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04,
+             match:(n)=>/^(Arm|Cross|Base-Top|Base-Bot|Top)$/i.test(n)},
+  alu:      {label:'aluminium', tint:null, metalness: 0.74, roughness: 0.13, env: 0.87, sat: 1.06,
+             match:(n)=>/^(Cam-Mount|Standoff|20mmx4mm)/i.test(n)},
+  motor:    {label:'motor (anodised)', tint:null, metalness: 1, roughness: 0.32, env: 0.9, sat: 1,
+             match:(n)=>/^Admi/i.test(n)},
+  heatsink: {label:'air unit heatsink', tint:null, metalness: 1, roughness: 0.5, env: 0, sat: 1,
+             match:(n)=>/^(Top Casing|Bottom Casing)/i.test(n)},
+  tpu:      {label:'TPU print', tint:null, metalness: 0.79, roughness: 1, env: 0, sat: 1,
+             match:(n)=>/^(Bumper|Airtag\/Antenna-Mount|VTX-Mount|Boot-)/i.test(n)},
+  rubber:   {label:'rubber / grommet', tint:null, metalness: 1, roughness: 1, env: 0.05, sat: 1,
+             match:(n)=>/^(softmount)/i.test(n)},
+  antenna:  {label:'antenna sleeve', tint:null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1,
+             match:(n)=>/^DJI/i.test(n)},
+  prop:     {label:'propeller', tint:null, metalness: 0.21, roughness: 0.44, env: 0.35, sat: 1,
+             match:(n)=>/^[0-9]+$/.test(n)},
+  camera:   {label:'camera + lens', tint:null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1,
+             match:(n)=>/^(Body|Lens)/i.test(n)},
+  tag:      {label:'AirTag', tint:null, metalness: 0.58, roughness: 0.38, env: 0.55, sat: 1,
+             match:(n)=>/^AirTag/i.test(n)},
+  steel:    {label:'steel fasteners', tint:null, metalness: 1, roughness: 0.36, env: 0.9, sat: 1,
+             match:(n)=>/(screw|hex nut|pressnut|press nut|washer)/i.test(n)},
+  mask:     {label:'PCB soldermask', tint:'#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1,
+             match:()=>false},
+  silk:     {label:'PCB silkscreen', tint:'#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1,
+             match:()=>false},
+  padgold:  {label:'PCB pads (ENIG)', tint:'#d9a441', metalness: 0.58, roughness: 0.25, env: 0.23, sat: 1,
+             match:()=>false},
+  fr4:      {label:'PCB core / edge', tint:'#a3894f', metalness: 0, roughness: 1, env: 0.4, sat: 1,
+             match:()=>false},
+  smd:      {label:'SMD components', tint:null, metalness: 1, roughness: 0.44, env: 0.5, sat: 1,
+             match:()=>true},   // catch-all, must stay last
+};
+const PKEYS = Object.keys(PROFILES);
+const classMats = Object.fromEntries(PKEYS.map((k)=>[k,[]]));
+
+// three.js mangles imported names: duplicates gain "_N", spaces become "_".
+const tidy = (n) => (n || '')
+  .replace(/_\d+$/, '')          // three.js duplicate suffix
+  .replace(/_/g, ' ')            // three.js turns spaces into underscores
+  .replace(/^occurrence of /i, '')  // Onshape wrapper node prefix
+  .trim();
+
+// Board fragments are named "<board>_pad" / "_silkscreen" / "_soldermask" /
+// "_PCB" by kicad-cli and survive the Onshape round-trip, so the PCB gets three
+// dedicated classes rather than being lumped in with the SMD catch-all. That is
+// what fixes the low-contrast, washed-out boards.
+function classOf(rawName) {
+  // Strip three.js's duplicate suffix BEFORE the suffix tests. "_" is a word
+  // character, so \b after "pad" does not match "4in1-mini_pad_744": only the
+  // first, unsuffixed occurrence of each fragment type ever classified, and the
+  // other ~1900 board meshes fell through to the SMD catch-all. That is why
+  // tinting the soldermask appeared to touch only one board.
+  const raw = (rawName || '').replace(/_\d+$/, '');
+  if (/_PCB\b/i.test(raw)) return 'fr4';     // shares the pad material; must win first
+  if (/_pad\b/i.test(raw)) return 'padgold';
+  if (/_silkscreen\b/i.test(raw)) return 'silk';
+  if (/_soldermask\b/i.test(raw)) return 'mask';
+  const n = tidy(raw);
+  for (const k of PKEYS) if (PROFILES[k].match(n)) return k;
+  return 'smd';
+}
+// ROOT CAUSE FIX. Onshape stores appearances as 8-bit sRGB; its exporter
+// divides by 255 and writes the result straight into baseColorFactor, which
+// glTF defines as LINEAR. Measured: 183 of 183 components in this file are
+// exact n/255. GLTFLoader then correctly treats them as linear, so every
+// albedo arrives far too bright, and worst on dark surfaces (dark plastic
+// x11.2, IC bodies x7.8, carbon x3.5, soldermask x2.6). That is the washout
+// and the missing contrast, in one bug. Decode it once, on load.
+const s2l = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+function decodeCAD(mat) {
+  const c = mat.color;
+  c.setRGB(s2l(c.r), s2l(c.g), s2l(c.b));   // setRGB writes working (linear) space
+}
+const hsl = {h:0,s:0,l:0};
+function applyProfile(mat, key) {
+  const p = PROFILES[key];
+  decodeCAD(mat);
+  mat.metalness = p.metalness; mat.roughness = p.roughness; mat.envMapIntensity = p.env;
+  if (p.tint) mat.color.set(p.tint);        // hex strings decode sRGB already
+  mat.userData.cadColor = mat.color.clone();
+  if (p.sat !== 1) { mat.color.getHSL(hsl); mat.color.setHSL(hsl.h, Math.min(1, hsl.s * p.sat), hsl.l); }
+  classMats[key].push(mat);
+}
+
+/* ------------------------------------------------------------------ LOADING */
+const DIAG = {hit:{}};
+window.__diag = DIAG;
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+let droneRoot = null;
+const bar = document.querySelector('#bar > i');
+
+// The HTML carries a cache-buster but the GLB did not, so a rebuilt asset kept
+// being served from cache. Pass the page's ?v= through to the model request.
+const ASSET_V = new URLSearchParams(location.search).get('v') ?? Date.now();
+
+// The assembly ships as several GLBs (build-hero.mjs --split) so the browser can
+// stream it and show the drone building up instead of one long stall. They are
+// reassembled here into the same shape a single-file load produced: one root
+// with one assembly node under it holding every occurrence. Every rule below
+// this line addresses parts by name and knows nothing about which file they
+// arrived in. No chunks.json means an older single-file build, so fall back.
+const matCache = new Map();
+function paint(subtree) {
+  subtree.traverse((o) => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;
+    let name = '', n = o;
+    while (n && n !== droneRoot) { if (n.name && !/^mesh/i.test(n.name)) { name = n.name; break; } n = n.parent; }
+    const key = classOf(name || o.name || '');
+    DIAG.hit[key] = (DIAG.hit[key] ?? 0) + 1;
+    const ck = `${o.material.uuid}|${key}`;
+    let m = matCache.get(ck);
+    if (!m) { m = o.material.clone(); applyProfile(m, key); matCache.set(ck, m); }
+    o.material = m;
+  });
+}
+
+(async () => {
+  const man = await fetch(`chunks.json?v=${ASSET_V}`)
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  const chunks = man?.chunks ?? [{id: 'drone', label: 'drone', file: 'drone.glb', bytes: 1}];
+  const total = chunks.reduce((s, c) => s + (c.bytes || 1), 0);
+  droneRoot = new THREE.Group();
+  droneRoot.name = 'assembly-root';
+  rig.add(droneRoot);
+  let asm = null;
+  let loaded = 0;
+  for (const c of chunks) {
+    document.querySelector('#load').firstChild.textContent = `loading ${c.label} `;
+    const g = await new Promise((res, rej) =>
+      loader.load(`${c.file}?v=${ASSET_V}`, res,
+        (e) => { if (e.total) bar.style.width = `${((loaded + (c.bytes || 1) * (e.loaded / e.total)) / total) * 100}%`; },
+        rej));
+    const src = g.scene.children.length === 1 ? g.scene.children[0] : g.scene;
+    if (!asm) {
+      // Every chunk is a clone of the same source document, so they share this
+      // node's transform. Take it from the first and check the rest agree.
+      asm = new THREE.Group();
+      asm.name = src.name || 'assembly';
+      asm.position.copy(src.position);
+      asm.quaternion.copy(src.quaternion);
+      asm.scale.copy(src.scale);
+      droneRoot.add(asm);
+    } else if (!asm.position.equals(src.position) || !asm.quaternion.equals(src.quaternion)) {
+      say(`chunk ${c.id}: assembly transform differs from the first chunk`);
+    }
+    for (const child of [...src.children]) asm.add(child);
+    paint(asm);
+    loaded += c.bytes || 1;
+    bar.style.width = `${(loaded / total) * 100}%`;
+  }
+  ready();
+})().catch((e) => say(`model: ${e?.message ?? e}`));
+
+// Darken, do not dissolve. Non-highlighted parts should read as unlit, still
+// solid and still occluding, so this scales their albedo and their environment
+// response toward black rather than touching opacity.
+//
+// Materials are shared across parts, so this cannot be done in place without
+// also darkening the subject. Keep a dimmed twin of every material and swap
+// meshes onto it when they are outside the current beat.
+const fadedTwin = new Map();
+function twinOf(mat) {
+  let t = fadedTwin.get(mat);
+  if (!t) {
+    t = mat.clone();
+    t.userData.normal = mat;
+    t.userData.baseColor = mat.color.clone();
+    t.userData.baseEnv = mat.envMapIntensity ?? 1;
+    fadedTwin.set(mat, t);
+    fadedTwin.set(t, t);          // idempotent
+  }
+  return t;
+}
+// Twins are clones, so an edit to a class must be mirrored onto them or it
+// only shows on whatever happens to be un-dimmed at that moment.
+function syncTwin(m) {
+  const t = fadedTwin.get(m);
+  if (!t || t === m) return;
+  t.metalness = m.metalness;
+  t.roughness = m.roughness;
+  t.clearcoat = m.clearcoat;
+  t.userData.baseColor = m.color.clone();
+  t.userData.baseEnv = m.envMapIntensity ?? 1;
+}
+let dimmedMeshes = [];
+// Computing this per beat change was the main source of scroll stutter: a full
+// scene traversal plus a material swap on every mesh, repeated every time the
+// timeline crossed a boundary. Cache the result on the beat.
+function computeDimSet(b) {
+  if (b._dim) return b._dim;
+  const keep = new Set();
+  for (const p of (b.nodes ?? [])) p.node.traverse((o) => keep.add(o));
+  const out = [];
+  droneRoot.traverse((o) => { if (o.isMesh && !keep.has(o)) out.push(o); });
+  b._dim = (b.nodes && b.nodes.length) ? out : [];
+  return b._dim;
+}
+function setFadeSet(b) {
+  for (const m of dimmedMeshes) if (m.material.userData?.normal) m.material = m.material.userData.normal;
+  dimmedMeshes = b ? computeDimSet(b) : [];
+  for (const m of dimmedMeshes) m.material = twinOf(m.material);
+}
+
+const pick = (re) => { const out = []; droneRoot?.traverse((o) => { if (o.name && re.test(tidy(o.name))) out.push(o); }); return out; };
+// Only the outermost matching node, so a whole part moves and no child is left
+// behind (the USB-C connectors used to stay put while the air unit flew off).
+function topLevel(nodes) {
+  const set = new Set(nodes);
+  return nodes.filter((n) => { for (let p = n.parent; p; p = p.parent) if (set.has(p)) return false; return true; });
+}
+// A board is its substrate fragments (`<board>_pad` / `_silkscreen` /
+// `_soldermask` / `_PCB`) PLUS every SMD component sitting on it, and those are
+// named by KiCad footprint, not by board. So find the substrate, take its
+// bounding box, and sweep up everything standing inside it.
+function boardGroup(prefix) {
+  const re = new RegExp('^' + prefix + '_(pad|silkscreen|soldermask|PCB)', 'i');
+  const frags = [];
+  droneRoot?.traverse((o) => { if (o.name && re.test(o.name.replace(/_\d+$/, ''))) frags.push(o); });
+  if (!frags.length) return [];
+  const bb = new THREE.Box3();
+  for (const f of frags) bb.expandByObject(f);
+  // Grow only in the board plane. Growing in Z as well swept in the standoffs,
+  // the stack screws and the rubber grommets, which pass straight through the
+  // board and are emphatically not part of it.
+  bb.min.x -= 0.0025; bb.max.x += 0.0025;
+  bb.min.y -= 0.0025; bb.max.y += 0.0025;
+  bb.min.z -= 0.0015; bb.max.z += 0.0060;   // component height only
+  const EXCLUDE = /(screw|hex nut|pressnut|press nut|washer|softmount|Standoff|20mmx4mm|Casing|^Arm$|^Cross$|^Base-|^Top$|DJI|VTX-Mount|Bumper|AirTag|Boot-|Admi|BM6B|^[0-9]+$)/i;
+  // The GLB nests everything under a single "Assembly 1" node, so the
+  // occurrences are its children, not droneRoot's.
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  const out = [];
+  for (const child of occRoot.children) {
+    const c = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
+    if (EXCLUDE.test(tidy(child.name))) continue;
+    if (bb.containsPoint(c)) out.push(child);
+  }
+  return out;
+}
+
+// A motor is FIVE bodies (bell, shaft, magnet ring, back-iron, base) and there
+// are four motors. Cluster by world XY so "one motor" means all five of its
+// pieces, not one arbitrary body.
+// The prop belongs to the motor it sits on. Match by planar distance between
+// the prop hub and the motor cluster centre; the nearest one is unambiguous
+// because the motors are ~90 mm apart and a 3in prop hub is ~2 mm across.
+function propForCluster(cluster) {
+  if (!cluster.length) return [];
+  const c = new THREE.Vector3();
+  new THREE.Box3().setFromObject(cluster[0]).getCenter(c);
+  let best = null, bestD = Infinity;
+  for (const g of propPivots) {
+    const p = g.getWorldPosition(new THREE.Vector3());
+    const d = Math.hypot(p.x - c.x, p.z - c.z);
+    if (d < bestD) { bestD = d; best = g; }
+  }
+  return best && bestD < 0.03 ? [best] : [];
+}
+
+function oneCluster(nodes, tolerance = 0.012) {
+  if (!nodes.length) return [];
+  const withPos = nodes.map((n) => ({n, p: n.getWorldPosition(new THREE.Vector3())}));
+  const seed = withPos[0];
+  return withPos.filter((w) => Math.hypot(w.p.x - seed.p.x, w.p.z - seed.p.z) < tolerance).map((w) => w.n);
+}
+
+// The airframe is not just the carbon: it is the plates, arms and cross plus
+// every standoff, screw, nut, soft mount, TPU print and the aluminium camera
+// cage. Defining it by exclusion (everything that is not a board, a motor, a
+// prop or part of the video module) means nothing can be silently left behind,
+// which is how the screws and standoffs went missing in the first place.
+const mergedBoard = (prefix) => {
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  const g = occRoot.children.find((c) => c.name === `BOARD_${prefix}`);
+  return g ? [g] : [];
+};
+
+const VIDEO_RE = /^(Top Casing|Bottom Casing|DJI|VTX-Mount|USB C|Body|Lens|BM6B)/i;
+const NOT_FRAME_RE = /^(Admi|prop-pivot|[0-9]+$)/i;
+function frameGroup() {
+  const boardNodes = new Set();
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  return occRoot.children.filter((c) => {
+    if (boardNodes.has(c) || /^BOARD_/.test(c.name)) return false;
+    const n = tidy(c.name);
+    return !VIDEO_RE.test(n) && !NOT_FRAME_RE.test(n);
+  });
+}
+
+/* -------------------------------------------------------------------- BEATS */
+const BEATS = [
+  // Establishing hold: nothing presents, nothing dims, the props just turn.
+  {id:'whole',  title:'OpenDrone 3"',      note:'complete airframe', get:()=>[]},
+  {id:'fc',     title:'OpenFC-Lite-Mini',  note:'RP2354B flight controller',
+   get:()=>mergedBoard('OpenFC'), faceOn:true},
+  {id:'esc',    title:'OpenESC-20x20',     note:'4-in-1 AM32 ESC',
+   get:()=>mergedBoard('4in1-mini'), faceOn:true},
+  {id:'rx',     title:'OpenRX-Mono',       note:'ELRS receiver',
+   get:()=>mergedBoard('OpenRX-Mono'), faceOn:true},
+  {id:'motor',  title:'Motor and propeller', note:'1604 class, 3in tri-blade',
+   get:()=>{ const c = oneCluster(topLevel(pick(/^Admi/i))); return [...c, ...propForCluster(c)]; }},
+  {id:'frame',  title:'Airframe',
+   note:'top plate off, then the video stack lifts out and stays',
+   fade: 0.99,
+   get:()=>[...frameGroup(), ...topLevel(pick(VIDEO_RE))],
+   // One continuous move rather than two beats: the frame comes in and opens,
+   // then the frame itself returns home while the video stack stays in the
+   // spotlight and becomes the subject. Going back to the assembled drone in
+   // between and flying out again would just be a stutter.
+   // Two stops inside one continuous move, so the video stack reads as its own
+   // subject rather than a tail on the frame animation: the caption changes and
+   // the spotlight re-strikes when the frame withdraws.
+   stops: [
+     {at: 0.00, title: 'Airframe', note: 'T700 carbon, standoffs, hardware, camera cage'},
+     {at: 0.62, title: 'Video module', note: 'air unit, antennas and camera lift out as one'},
+   ],
+   nodeK: (p, k, holdT) => {
+     const isVideo = p.withVideo || VIDEO_RE.test(tidy(p.node.name));
+     if (isVideo) return k;
+     // Frame parts hold until 55% of the hold, then withdraw by 80%.
+     if (holdT <= 0.55) return k;
+     const back = 1 - Math.min(1, (holdT - 0.55) / 0.25);
+     return k * (back * back * (3 - 2 * back));
+   },
+   // What actually sells this frame is that the video stack is swappable: undo
+   // the top plate and the 3D-printed cradle carrying the air unit, antennas
+   // and camera slides straight off the standoffs. So the beat performs that,
+   // rather than just holding the frame up.
+   extra: (p, ctx) => {
+     const d = new THREE.Vector3();
+     // Everything lifts straight up: that is how the stack actually comes
+     // apart, off the standoffs. The plate travels furthest so it clears the
+     // video stack rather than sitting on top of it.
+     if (p.withTop) d.addScaledVector(ctx.up, ctx.ref * 1.15 * ctx.open);
+     else if (p.withVideo || VIDEO_RE.test(tidy(p.node.name)))
+       d.addScaledVector(ctx.up, ctx.ref * 0.55 * ctx.open);
+     return d;
+   }},
+];
+
+let droneCentre, droneRadius, centreLocal;
+let beat = 0, t = 0, playing = true;
+let speed=1.5, HOLD=8.8, TRAVEL=2.65, FILL=0.6, SPIN=0.06, orbitRate=0.195, PROP_W=1.25;
+let SHRINK=0.55, DIM=0.28, SPOT=22.5, STAGE_X=0.28, BEAM=0.44, FADE=1.0, HAND=-1, STRIKE=0.27;
+let CAM_DIST=2.15, CAM_DOLLY=0.92, CAM_HEIGHT=0.5, CAM_FREE=false;
+let SCROLL_FREQ=1.1, SCROLL_GAIN=0.0016, MAGNET=0.14, COMMIT_FRAC=0.28;
+let BOARD_TILT=0.16, BOARD_CAM_H=0.72, camHeightNow=0.5;
+let SPOT_ANGLE=26, SPOT_SOFT=0.6, SPOT_SIDE=35, SPOT_HEIGHT=0.48;
+const dur = () => TRAVEL*2 + HOLD;
+const ease = (x) => x*x*(3-2*x);
+function envelope(l){ if(l<TRAVEL) return ease(l/TRAVEL); if(l<TRAVEL+HOLD) return 1;
+  return 1-ease(Math.min(1,(l-TRAVEL-HOLD)/TRAVEL)); }
+
+const propPivots = [];
+function motorCentres() {
+  // Motor bodies are axisymmetric revolves, so a motor cluster's bounding-box
+  // centre lies exactly on its shaft axis. Cluster the Admi bodies by planar
+  // position to get one centre per motor.
+  const bodies = topLevel(pick(/^Admi/i));
+  const centres = [];
+  for (const b of bodies) {
+    const c = new THREE.Box3().setFromObject(b).getCenter(new THREE.Vector3());
+    const hit = centres.find((e) => Math.hypot(e.sum.x / e.n - c.x, e.sum.z / e.n - c.z) < 0.015);
+    if (hit) { hit.sum.add(c); hit.n++; }
+    else centres.push({sum: c.clone(), n: 1});
+  }
+  return centres.map((e) => e.sum.divideScalar(e.n));
+}
+
+// A board is ~1900 occurrences (745 pads on the ESC alone) that always move as
+// one object, so every one of them was costing a draw call for nothing. Bake
+// each board down to one mesh per material, parented to a single group the
+// beats can move. Geometry is baked into occRoot space so the group itself
+// stays at identity.
+function mergeBoards() {
+  scene.updateMatrixWorld(true);
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  const inv = new THREE.Matrix4().copy(occRoot.matrixWorld).invert();
+  const report = {};
+
+  for (const prefix of ['OpenFC', '4in1-mini', 'OpenRX-Mono']) {
+    const members = boardGroup(prefix);
+    if (!members.length) continue;
+
+    const byMat = new Map();
+    let src = 0;
+    for (const node of members) {
+      node.traverse((o) => {
+        if (!o.isMesh) return;
+        src++;
+        const g = o.geometry.clone();
+        g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+        // mergeGeometries needs identical attribute sets.
+        for (const name of Object.keys(g.attributes))
+          if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
+        if (!g.getAttribute('normal')) g.computeVertexNormals();
+        if (!byMat.has(o.material)) byMat.set(o.material, []);
+        byMat.get(o.material).push(g);
+      });
+    }
+
+    const group = new THREE.Group();
+    group.name = `BOARD_${prefix}`;
+    let out = 0;
+    for (const [mat, geos] of byMat) {
+      const merged = geos.length === 1 ? geos[0] : BufferGeometryUtils.mergeGeometries(geos, false);
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, mat);
+      m.frustumCulled = false;
+      m.name = `${prefix}_merged`;
+      group.add(m);
+      out++;
+    }
+    occRoot.add(group);
+    for (const node of members) node.removeFromParent();
+    report[prefix] = {occurrences: members.length, meshesBefore: src, meshesAfter: out};
+  }
+  console.log('[merge] boards', report);
+  return report;
+}
+
+function riggPropPivots() {
+  // Box3.setFromObject reads matrixWorld, and those are stale straight after
+  // load, so measure only once everything is up to date.
+  scene.updateMatrixWorld(true);
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  const motors = motorCentres();
+
+  const propNodes = occRoot.children.filter((c) => /^occurrence[_ ]of[_ ][0-9]+(_[0-9]+)?$/i.test(c.name || ''));
+  for (const p of propNodes) {
+    // A tri-blade prop's bounding-box centre is NOT its hub: three blades at
+    // 120 degrees make the box asymmetric, so pivoting there swings the prop
+    // around a point beside the motor. Use the motor's own axis instead, taken
+    // at the prop's height.
+    const pc = new THREE.Box3().setFromObject(p).getCenter(new THREE.Vector3());
+    let axis = null, bestD = Infinity;
+    for (const m of motors) {
+      const d = Math.hypot(m.x - pc.x, m.z - pc.z);
+      if (d < bestD) { bestD = d; axis = m; }
+    }
+    const hubWorld = axis
+      ? new THREE.Vector3(axis.x, pc.y, axis.z)
+      : pc;   // no motor found: fall back, but this should not happen
+
+    const g = new THREE.Group();
+    g.name = 'prop-pivot';
+    occRoot.add(g);
+    g.position.copy(occRoot.worldToLocal(hubWorld.clone()));
+    g.updateMatrixWorld(true);
+    const sp = new THREE.Group();
+    sp.name = 'prop-spin';
+    g.add(sp);
+    sp.updateMatrixWorld(true);
+    sp.attach(p);                // preserves the prop's world transform
+    g.userData.spin = sp;
+    const dx = hubWorld.x - droneCentre.x, dz = hubWorld.z - droneCentre.z;
+    // Diagonal pairs counter-rotate. Which diagonal is CW depends on the motor
+    // layout, and that is a fact about the build, not something to infer, so
+    // the global handedness is a switch.
+    g.userData.dir = dx * dz < 0 ? 1 : -1;
+    g.userData.axisOffsetMm = bestD * 1000;
+    propPivots.push(g);
+  }
+  if (propPivots.length !== 4) console.warn(`[props] expected 4, rigged ${propPivots.length}`);
+  console.log(`[props] ${propPivots.length} pivots, motors found: ${motors.length}`,
+              propPivots.map((g) => +g.userData.axisOffsetMm.toFixed(1)));
+}
+
+window.__testProps = () => {
+  scene.updateMatrixWorld(true);
+  const before = propPivots.map((g) => new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3()));
+  for (const g of propPivots) g.userData.spin.rotation.z += 1.0;
+  scene.updateMatrixWorld(true);
+  const after = propPivots.map((g) => new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3()));
+  for (const g of propPivots) g.userData.spin.rotation.z -= 1.0;
+  scene.updateMatrixWorld(true);
+  return {
+    count: propPivots.length,
+    driftMm: before.map((b, i) => +(b.distanceTo(after[i]) * 1000).toFixed(2)),
+    // How far each pivot sits from the nearest motor axis. Should be ~0.
+    axisOffsetMm: propPivots.map((g) => +(g.userData.axisOffsetMm ?? -1).toFixed(2)),
+    hubMm: propPivots.map((g) => g.getWorldPosition(new THREE.Vector3())
+      .toArray().map((v) => +(v * 1000).toFixed(1))),
+  };
+};
+
+function ready() {
+  const box = new THREE.Box3().setFromObject(rig);
+  droneCentre = box.getCenter(new THREE.Vector3());
+  droneRadius = box.getBoundingSphere(new THREE.Sphere()).radius;
+  centreLocal = pivot.worldToLocal(droneCentre.clone());
+  pivot.position.copy(centreLocal); rig.position.copy(centreLocal.clone().negate());
+
+  // Both must run before the beat loop below snapshots node transforms.
+  mergeBoards();
+  riggPropPivots();
+
+  for (const b of BEATS) {
+    const nodes = b.get();
+    b.nodes = nodes.map((n) => ({
+      node: n, pos: n.position.clone(), quat: n.quaternion.clone(), scl: n.scale.clone(),
+      worldOrigin: n.getWorldPosition(new THREE.Vector3()),
+      worldCentre: new THREE.Box3().setFromObject(n).getCenter(new THREE.Vector3()),
+    }));
+    if (b.nodes.length) {
+      const bb = new THREE.Box3();
+      for (const p of b.nodes) bb.expandByObject(p.node);
+      b.centre = bb.getCenter(new THREE.Vector3());
+      b.radius = Math.max(bb.getBoundingSphere(new THREE.Sphere()).radius, 1e-4);
+
+      // Undoing the top plate means undoing its screws, so they must travel
+      // with it. world is rotated -90 about X, so the drone's up axis is world
+      // +Y: anything fastener-like sitting at or above the plate's underside is
+      // holding it on.
+      // Only the fasteners that actually hold the air unit onto its cradle
+      // travel with it. Testing against the whole module's bounding box was far
+      // too greedy: that box spans from the cradle up past the antenna tips and
+      // covers the middle of the airframe, so every frame screw underneath fell
+      // inside it. Use the cradle alone, and only above its underside.
+      const vid = b.nodes.filter((p) => /^VTX-Mount/i.test(tidy(p.node.name)));
+      if (vid.length) {
+        const vbb = new THREE.Box3();
+        for (const p of vid) vbb.expandByObject(p.node);
+        vbb.min.x -= 0.002; vbb.max.x += 0.002;
+        vbb.min.z -= 0.002; vbb.max.z += 0.002;
+        vbb.min.y += 0.001;            // nothing below the cradle's own base
+        for (const p of b.nodes) {
+          if (!/(screw|hex nut|washer)/i.test(tidy(p.node.name))) continue;
+          const c = new THREE.Box3().setFromObject(p.node).getCenter(new THREE.Vector3());
+          if (vbb.containsPoint(c)) p.withVideo = true;
+        }
+      }
+
+      const plate = b.nodes.find((p) => tidy(p.node.name) === 'Top');
+      if (plate) {
+        const pbb = new THREE.Box3().setFromObject(plate.node);
+        for (const p of b.nodes) {
+          const n = tidy(p.node.name);
+          if (n === 'Top') { p.withTop = true; continue; }
+          if (!/(screw|hex nut|washer)/i.test(n)) continue;
+          const c = new THREE.Box3().setFromObject(p.node).getCenter(new THREE.Vector3());
+          if (c.y >= pbb.min.y - 0.0015) p.withTop = true;
+        }
+      }
+    }
+    const o = document.createElement('option'); o.value = b.id; o.textContent = b.title;
+    document.getElementById('jump').append(o);
+  }
+  controls.target.copy(droneCentre);
+  camera.position.copy(droneCentre).add(new THREE.Vector3(1,0.55,1).normalize().multiplyScalar(droneRadius*2.7));
+  camera.near = droneRadius/300; camera.far = droneRadius*60; camera.updateProjectionMatrix();
+  // Every dimmed twin is a distinct material and compiles its shader the first
+  // time it is drawn, which showed up as a hitch on the first spotlight. Force
+  // the compiles up front, while the loading indicator is still showing.
+  setFadeSet(BEATS[1] ?? null);
+  renderer.compile(scene, camera);
+  setFadeSet(null);
+  renderer.compile(scene, camera);
+  lastFadeBeat = -1;
+
+  buildRail();
+  renderAudit();
+  document.getElementById('load').style.display = 'none';
+  window.__beats = BEATS; window.__scene = scene;
+  syncUI(); resize();
+}
+
+const restore = (b) => { if (b.nodes) for (const p of b.nodes) {
+  p.node.position.copy(p.pos); p.node.quaternion.copy(p.quat); p.node.scale.copy(p.scl); } };
+
+// Which sub-stop of a multi-part beat we are in.
+function activeStop(b, holdT) {
+  if (!b.stops || !b.stops.length) return {at: 0, title: b.title, note: b.note};
+  let cur = b.stops[0];
+  for (const st of b.stops) if (holdT >= st.at) cur = st;
+  return cur;
+}
+const _q = new THREE.Quaternion();
+function present(b, k, elapsed) {
+  if (!b.nodes || !b.nodes.length) { spotL.intensity = 0; beam.visible = false; return; }
+  restore(b);
+  if (k <= 0.0001) { spotL.intensity = 0; beam.visible = false; return; }
+
+  const fwd = camera.getWorldDirection(new THREE.Vector3());
+  const dist = droneRadius * 1.9;
+  // Dead-centre: the part is the subject, so it sits on the camera axis and the
+  // shrunken drone reads behind it rather than fighting it for the frame.
+  // Left of centre: the right half of the frame is reserved for the part's
+  // name, description and purchase link.
+  const anchor = camera.position.clone().addScaledVector(fwd, dist);
+  // Screen-right in world space; the frame beat slides the video stack along it.
+  const rightv = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+  anchor.addScaledVector(rightv, -dist * STAGE_X);
+  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov)/2) * dist;
+  // pivot is shrinking, and these nodes live under it, so divide it back out to
+  // hold a constant on-screen size.
+  const wantScale = THREE.MathUtils.clamp((halfH*FILL)/b.radius, 0.2, 80) / pivot.scale.x;
+  const spin = new THREE.Quaternion().setFromAxisAngle(camera.up, elapsed*SPIN);
+  const S = wantScale * pivot.scale.x;
+
+  // Raking 3/4 position rather than straight on. SPOT_SIDE swings it around the
+  // part, SPOT_HEIGHT lifts it; both leave a shadow side, which is what keeps
+  // the part reading as a solid object instead of a flat cut-out.
+  const sideAng = THREE.MathUtils.degToRad(SPOT_SIDE);
+  const lampPos = anchor.clone()
+    .addScaledVector(camera.up, dist * SPOT_HEIGHT)
+    .addScaledVector(rightv, dist * 0.55 * Math.sin(sideAng))
+    .addScaledVector(fwd, -dist * 0.55 * Math.cos(sideAng));
+  spotL.target.position.copy(anchor);
+  spotL.target.updateMatrixWorld();
+  spotL.angle = THREE.MathUtils.degToRad(SPOT_ANGLE);
+  spotL.penumbra = SPOT_SOFT;
+  spotL.position.copy(lampPos);
+  // A spotlight strikes; it does not cross-fade. The shaft shoots down from the
+  // lamp over a fraction of the travel and the source overshoots on ignition
+  // before settling, which is what makes it read as switching on.
+  const holdT = THREE.MathUtils.clamp((elapsed - TRAVEL) / Math.max(HOLD, 1e-3), 0, 1);
+  const arrived = elapsed >= TRAVEL && elapsed <= TRAVEL + HOLD;
+  // Restart the strike at each sub-stop so a second subject gets its own
+  // switch-on rather than inheriting the first one's light.
+  const strike = arrived
+    ? THREE.MathUtils.clamp((elapsed - TRAVEL) / Math.max(STRIKE * HOLD, 1e-3), 0, 1)
+    : 0;
+  const shoot = 1 - Math.pow(1 - strike, 3);          // fast out
+  const ignite = 1 + 0.9 * Math.exp(-7 * strike);     // brief overshoot
+  beam.visible = strike > 0.01;
+  beamMat.opacity = 0.085 * BEAM * shoot * ignite;
+  spotL.intensity = SPOT * shoot * ignite * droneRadius * droneRadius;
+  {
+    // Apex stays at the lamp while the shaft extends, so it grows top to
+    // bottom. Full length runs well past the part, putting the open base off
+    // screen so no rim is ever visible.
+    const dir = anchor.clone().sub(lampPos).normalize();
+    const span = lampPos.distanceTo(anchor) * 6.0 * shoot;
+    const rad = Math.tan(THREE.MathUtils.degToRad(SPOT_ANGLE)) * span * 0.55 * shoot;
+    beam.scale.set(rad, Math.max(span, 1e-5), rad);
+    beam.position.copy(lampPos).addScaledVector(dir, span * 0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+  }
+
+  // 0 at the start of the hold, 1 mid-hold, back to 0 by the end, so a beat can
+  // stage a sub-move (open the frame, slide a module out) and reverse it before
+  // the part flies home.
+  const open = holdT < 0.45 ? ease(holdT / 0.45) : holdT < 0.7 ? 1 : 1 - ease((holdT - 0.7) / 0.3);
+  const ctx = {up: camera.up.clone(), right: rightv.clone(), ref: b.radius * S, open};
+
+
+  for (const p of b.nodes) {
+    // A beat may hand off: some nodes return home while others stay lit.
+    const kk = b.nodeK ? b.nodeK(p, k, holdT) : k;
+    // Where this node's own centre should end up.
+    const off = p.worldCentre.clone().sub(b.centre).multiplyScalar(S).applyQuaternion(spin);
+    if (b.extra) off.add(b.extra(p, ctx));
+    const targetCentre = anchor.clone().add(off);
+    // Scaling happens about the node's origin, so back out the origin-to-centre
+    // vector (scaled and rotated) to find where the ORIGIN must sit.
+    const originToCentre = p.worldCentre.clone().sub(p.worldOrigin).multiplyScalar(S).applyQuaternion(spin);
+    const wantLocal = p.node.parent.worldToLocal(targetCentre.sub(originToCentre));
+    p.node.position.lerpVectors(p.pos, wantLocal, kk);
+    p.node.parent.getWorldQuaternion(_q);
+    const target = _q.clone().invert().multiply(spin).multiply(_q).multiply(p.quat);
+    p.node.quaternion.copy(p.quat).slerp(target, kk);
+    p.node.scale.copy(p.scl).lerp(p.scl.clone().multiplyScalar(wantScale), kk);
+  }
+}
+
+const clock = new THREE.Clock();
+let orbitAngle = 0, loopErr = 0, lastFadeBeat = -1;
+function frame() {
+ try {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (droneCentre) {
+    if (playing) { t += dt*speed; if (t > dur()) { t = 0; beat = (beat+1)%BEATS.length; syncUI(); } }
+    else advanceScroll(dt);
+    if (beat !== lastFadeBeat) { lastFadeBeat = beat; setFadeSet(BEATS[beat]); }
+    for (const other of BEATS) if (other !== BEATS[beat]) restore(other);
+    const kRaw = envelope(t);
+    const hasPart = (BEATS[beat].nodes?.length ?? 0) > 0;
+    const k = hasPart ? kRaw : 0;
+    const propRate = PROP_W * (1 - k);
+    for (const g of propPivots)
+      g.userData.spin.rotation.z += dt * propRate * g.userData.dir * HAND;
+    // Shrink and dim the airframe so the shown part owns the frame.
+    const s = THREE.MathUtils.lerp(1, SHRINK, k);
+    pivot.scale.setScalar(s);
+    // Drop the brightness of everything outside the beat, then bring it back.
+    // Per-beat override lets the airframe take the rest almost to black.
+    const fadeAmt = BEATS[beat].fade ?? FADE;
+    const bright = THREE.MathUtils.lerp(1, 1 - fadeAmt, k);
+    for (const m of fadedTwin.values()) {
+      if (!m.userData.baseColor) continue;
+      m.color.copy(m.userData.baseColor).multiplyScalar(bright);
+      m.envMapIntensity = m.userData.baseEnv * bright;
+    }
+    const d = THREE.MathUtils.lerp(1, 1 - DIM, k);
+    hemi.intensity = BASE.hemi*d; keyL.intensity = BASE.key*d;
+    rimL.intensity = BASE.rim*d; fillL.intensity = BASE.fill*d; bncL.intensity = BASE.bounce*d;
+    present(BEATS[beat], k, t);
+
+    if (!CAM_FREE) {
+      orbitAngle += dt * orbitRate;
+      const back = droneRadius * (CAM_DIST + CAM_DOLLY * k);
+      // Per-beat camera height, eased in with the part and back out after it.
+      const wantH = BEATS[beat].camHeight ?? (BEATS[beat].faceOn ? BOARD_CAM_H : CAM_HEIGHT);
+      // Deliberately lazier than the part's own easing: the camera should trail
+      // the move slightly and settle into it, not perform a gesture of its own.
+      camHeightNow += (THREE.MathUtils.lerp(CAM_HEIGHT, wantH, k) - camHeightNow)
+                    * (1 - Math.pow(0.35, dt));
+      const off = new THREE.Vector3(Math.cos(orbitAngle), camHeightNow, Math.sin(orbitAngle))
+        .normalize().multiplyScalar(back);
+      camera.position.lerp(droneCentre.clone().add(off), 1 - Math.pow(0.004, dt));
+      controls.target.lerp(droneCentre, 1 - Math.pow(0.02, dt));
+    }
+    if (playing) updateRail((beat * dur() + t) / (BEATS.length * dur()));
+    window.__now = {beat:BEATS[beat].id, t:+t.toFixed(2), k:+k.toFixed(3), n:BEATS[beat].nodes?.length??0};
+  }
+  controls.update();
+  renderer.render(scene, camera);
+ } catch (e) { if (loopErr++ < 3) { window.__loopError = e.stack || String(e); say('loop: '+e.message); } }
+}
+renderer.setAnimationLoop(frame);
+// rAF is suspended while the tab is backgrounded, which makes the scene look
+// frozen to anything driving this page remotely.
+setInterval(() => { if (document.hidden) frame(); }, 33);
+window.__seek = (id, local) => {
+  const i = BEATS.findIndex((b)=>b.id===id); if (i<0) return 'no such beat';
+  playing = false; beat = i; t = local ?? (TRAVEL + HOLD/2); syncUI();
+  for (let n=0;n<3;n++) frame();
+  return {beat:BEATS[beat].id, t, k:envelope(t), nodes:BEATS[beat].nodes?.length};
+};
+
+/* ------------------------------------------------------------- INSPECTOR
+ * Humans are good at looking at a thing and saying "that one". Clicking a part
+ * reports what the studio thinks it is: its normalised name, the material class
+ * it matched, and which beats claim it. Every misassignment found today would
+ * have been visible here in one click.
+ */
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let picked = null;
+const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xd8a13a);
+pickBox.visible = false; scene.add(pickBox);
+
+function occurrenceOf(obj) {
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  let n = obj;
+  while (n && n.parent && n.parent !== occRoot) n = n.parent;
+  return n;
+}
+function beatsClaiming(node) {
+  const out = [];
+  for (const b of BEATS) {
+    if (!b.nodes) continue;
+    if (b.nodes.some((p) => p.node === node || node.parent === p.node ||
+        (p.node.getObjectById && p.node.getObjectById(node.id)))) out.push(b.id);
+  }
+  return out;
+}
+function describe(obj) {
+  const occ = occurrenceOf(obj);
+  const name = tidy(occ.name || obj.name);
+  let tris = 0, meshes = 0;
+  occ.traverse((o) => { if (!o.isMesh) return; meshes++;
+    const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; });
+  const cls = classOf(obj.name || occ.name || '');
+  const claimed = beatsClaiming(occ);
+  const bb = new THREE.Box3().setFromObject(occ);
+  const size = bb.getSize(new THREE.Vector3()).multiplyScalar(1000);
+  return {name, cls, claimed, meshes, tris: Math.round(tris),
+          size: size.toArray().map((v) => v.toFixed(1)).join(' x ') + ' mm', occ};
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !droneRoot) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObject(droneRoot, true).find((h) => h.object.visible);
+  const el = document.getElementById('pickinfo');
+  if (!hit) { pickBox.visible = false; picked = null; el.textContent = 'nothing under the cursor'; return; }
+  const d = describe(hit.object);
+  picked = d.occ;
+  pickBox.box.setFromObject(d.occ); pickBox.visible = true;
+  el.innerHTML =
+    `<b style="color:var(--ink)">${d.name}</b><br>` +
+    `material class: <span style="color:var(--gold)">${d.cls}</span><br>` +
+    `in beats: <span style="color:var(--gold)">${d.claimed.length ? d.claimed.join(', ') : 'NONE - it never moves'}</span><br>` +
+    `${d.meshes} mesh(es), ${d.tris.toLocaleString()} tris<br>${d.size}`;
+  // Jump the material panel to this part's class so it can be tuned at once.
+  const sel = document.getElementById('mat');
+  if ([...sel.options].some((o) => o.value === d.cls)) { sel.value = d.cls; sel.dispatchEvent(new Event('change')); }
+});
+
+// Everything in the assembly, grouped, with whatever no beat ever moves flagged.
+function auditParts() {
+  const occRoot = droneRoot.children.length === 1 ? droneRoot.children[0] : droneRoot;
+  const rows = new Map();
+  for (const c of occRoot.children) {
+    let tris = 0;
+    c.traverse((o) => { if (!o.isMesh) return; const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3; });
+    if (!tris) continue;
+    const name = tidy(c.name);
+    const e = rows.get(name) ?? {n: 0, tris: 0, cls: classOf(c.name), beats: new Set()};
+    e.n++; e.tris += tris;
+    for (const id of beatsClaiming(c)) e.beats.add(id);
+    rows.set(name, e);
+  }
+  return [...rows].sort((a, b) => b[1].tris - a[1].tris);
+}
+function renderAudit(filter = '') {
+  const host = document.getElementById('partslist');
+  const f = filter.trim().toLowerCase();
+  const rows = auditParts().filter(([n]) => !f || n.toLowerCase().includes(f));
+  const orphans = rows.filter(([, e]) => e.beats.size === 0).length;
+  document.getElementById('auditsum').textContent =
+    `${rows.length} part families, ${orphans} claimed by no beat`;
+  host.innerHTML = rows.map(([n, e]) =>
+    `<div class="prow${e.beats.size ? '' : ' orphan'}">` +
+    `<span class="pn">${n}</span>` +
+    `<span class="pc">${e.cls}</span>` +
+    `<span class="pb">${e.beats.size ? [...e.beats].join(',') : '-'}</span>` +
+    `<span class="pt">${Math.round(e.tris / 1000)}k</span></div>`).join('');
+}
+
+// A vertical rail with one dot per beat: how many stops there are, which one
+// you are on, and how far through. Without it a scroll-driven hero gives the
+// reader no idea there is anything below.
+function buildRail() {
+  const rail = document.getElementById('rail');
+  BEATS.forEach((b, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot'; d.dataset.i = i;
+    d.style.top = `${(i / (BEATS.length - 1)) * 100}%`;
+    d.title = b.title;
+    d.onclick = () => { playing = false; scrollActive = true; committed = i;
+      gestureFrom = i; gestureDir = 0;
+      scrollTarget = stopFor(i); lastWheel = performance.now() - 2000; };
+    rail.append(d);
+  });
+}
+function updateRail(frac) {
+  const f = Math.max(0, Math.min(1, frac));
+  document.getElementById('railfill').style.height = `${f * 100}%`;
+  document.getElementById('railmark').style.top = `${f * 100}%`;
+  for (const d of document.querySelectorAll('#rail .dot')) {
+    const i = +d.dataset.i;
+    d.classList.toggle('on', i === beat);
+    d.classList.toggle('done', i < beat);
+  }
+}
+
+/* ---------------------------------------------------------------------- UI */
+const stage = document.getElementById('stage');
+let lastCaption = '', lastJump = '';
+function syncUI(){
+  const b = BEATS[beat];
+  const holdT = THREE.MathUtils.clamp((t - TRAVEL) / Math.max(HOLD, 1e-3), 0, 1);
+  const st = b.stops ? activeStop(b, holdT) : b;
+  const caption = `<b>${st.title}</b><i>${st.note}</i>`;
+  if (caption !== lastCaption) { stage.innerHTML = caption; lastCaption = caption; }
+  if (b.id !== lastJump) { document.getElementById('jump').value = b.id; lastJump = b.id; }
+}
+const bind=(id,fn)=>{const el=document.getElementById(id),out=document.getElementById(id+'v');
+  const run=()=>{fn(parseFloat(el.value)); if(out) out.textContent=(+el.value).toFixed(2);};
+  el.addEventListener('input',run); run();};
+document.getElementById('play').onclick=(e)=>{playing=!playing;
+  e.target.textContent=playing?'pause':'play'; e.target.classList.toggle('on',playing);};
+document.getElementById('next').onclick=()=>{beat=(beat+1)%BEATS.length;t=0;syncUI();};
+document.getElementById('prev').onclick=()=>{beat=(beat-1+BEATS.length)%BEATS.length;t=0;syncUI();};
+document.getElementById('jump').onchange=(e)=>{beat=BEATS.findIndex(b=>b.id===e.target.value);t=0;syncUI();};
+bind('speed',v=>speed=v); bind('hold',v=>HOLD=v); bind('travel',v=>TRAVEL=v);
+bind('fill',v=>FILL=v); bind('spin',v=>SPIN=v); bind('orbit',v=>orbitRate=v); bind('rpm',v=>PROP_W=v); bind('hand',v=>HAND=v);
+bind('sfreq',v=>SCROLL_FREQ=v); bind('sgain',v=>SCROLL_GAIN=v); bind('smag',v=>MAGNET=v); bind('scommit',v=>COMMIT_FRAC=v);
+bind('shrink',v=>SHRINK=v); bind('dim',v=>DIM=v); bind('spot',v=>SPOT=v);
+bind('beam',v=>BEAM=v); bind('stagex',v=>STAGE_X=v); bind('fade',v=>FADE=v);
+bind('strike',v=>STRIKE=v);
+bind('btilt',v=>BOARD_TILT=v);
+bind('spotang',v=>SPOT_ANGLE=v); bind('spotsoft',v=>SPOT_SOFT=v);
+bind('spotside',v=>SPOT_SIDE=v); bind('spoth',v=>SPOT_HEIGHT=v);
+bind('camdist',v=>CAM_DIST=v); bind('camheight',v=>{CAM_HEIGHT=v;}); bind('camheightb',v=>BOARD_CAM_H=v); bind('camdolly',v=>CAM_DOLLY=v);
+bind('camfree',v=>{CAM_FREE=!!v; controls.enabled=true;});
+document.getElementById('pfilter').addEventListener('input',(e)=>renderAudit(e.target.value));
+bind('bncI',v=>{BASE.bounce=v;});
+document.getElementById('bncC').addEventListener('input',e=>bncL.color.set(e.target.value));
+
+// Presets write into the existing controls and fire their handlers, so nothing
+// is bypassed and every value stays editable afterwards.
+const PRESETS = {
+  studio:    {exp:1.00, genv:0.30, hemii:0.00, keyI:2.6, keyE:46, filI:0.55, rimI:2.2, bncI:0.30},
+  dramatic:  {exp:1.05, genv:0.18, hemii:0.00, keyI:3.6, keyE:58, filI:0.20, rimI:3.4, bncI:0.12},
+  soft:      {exp:0.95, genv:0.75, hemii:0.30, keyI:1.6, keyE:38, filI:1.10, rimI:1.2, bncI:0.45},
+  technical: {exp:1.00, genv:1.10, hemii:0.70, keyI:1.2, keyE:60, filI:1.40, rimI:0.8, bncI:0.70},
+};
+document.getElementById('preset').onchange = (e) => {
+  const p = PRESETS[e.target.value]; if (!p) return;
+  for (const [id, v] of Object.entries(p)) {
+    const el = document.getElementById(id);
+    if (el) { el.value = v; el.dispatchEvent(new Event('input')); }
+  }
+};
+bind('exp',v=>renderer.toneMappingExposure=v);
+bind('genv',v=>scene.environmentIntensity=v);
+bind('hemii',v=>{BASE.hemi=v;});
+document.getElementById('bgc').oninput=e=>scene.background=new THREE.Color(e.target.value);
+
+// Each light: power feeds BASE (the dimmer multiplies it every frame), while
+// azimuth/elevation re-aim it on the unit sphere.
+for (const [pfx, light, slot] of [['key',keyL,'key'],['fil',fillL,'fill'],['rim',rimL,'rim']]) {
+  const key = pfx === 'fil' ? 'fill' : pfx;
+  bind(pfx+'I', v => { BASE[key] = v; RIG[slot].intensity = v; });
+  bind(pfx+'A', v => { RIG[slot].az = v; aim(light, RIG[slot].az, RIG[slot].el, 1); });
+  bind(pfx+'E', v => { RIG[slot].el = v; aim(light, RIG[slot].az, RIG[slot].el, 1); });
+  document.getElementById(pfx+'C').addEventListener('input', (e) => {
+    RIG[slot].color = e.target.value; light.color.set(e.target.value);
+  });
+}
+
+// Scroll feel.
+//
+// No velocity clamp: throttling input makes a page feel broken, not considered.
+// What makes scrolling feel good is the RESPONSE, so the timeline position is
+// driven by a critically damped spring. A fast flick still moves fast, because
+// the spring's target jumps immediately; what the spring guarantees is that the
+// approach decelerates smoothly and never overshoots or judders, at any input
+// speed and any frame rate.
+//
+// Stops are magnetic rather than snapping. The pull is strongest when you are
+// already near a stop and have slowed down, so it guides you onto a viewpoint
+// without ever yanking the timeline out from under an active gesture.
+let scrollTarget = 0, scrollPos = 0, scrollVel = 0, lastWheel = 0, scrollActive = false;
+// A gesture is a run of wheel events. We remember where it started and which
+// way it went, because "nearest stop" is the wrong destination: at 45% of the
+// way to the next beat the nearest stop is still the one behind you, so it
+// drags you backwards just as you expect to arrive. That is the stickiness.
+let gestureFrom = 0, gestureDir = 0, committed = null;
+const stopFor = (i) => i * dur() + TRAVEL + HOLD * 0.5;
+function nearestStopIdx(x) {
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < BEATS.length; i++) {
+    const d = Math.abs(stopFor(i) - x);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (playing) {
+    playing = false;
+    const btn = document.getElementById('play');
+    btn.textContent = 'play'; btn.classList.remove('on');
+    scrollPos = scrollTarget = beat * dur() + t;
+    scrollVel = 0;
+  }
+  const now = performance.now();
+  if (!scrollActive || now - lastWheel > 220) {   // new gesture
+    gestureFrom = nearestStopIdx(scrollPos);
+    gestureDir = 0;
+    committed = null;
+  }
+  if (e.deltaY !== 0) gestureDir = Math.sign(e.deltaY);
+  scrollActive = true;
+  lastWheel = now;
+  const span = BEATS.length * dur();
+  // Normalise across devices: a trackpad emits many small deltas, a wheel a few
+  // large ones. Cap the per-event step, not the resulting speed, so rapid input
+  // still accumulates quickly.
+  const step = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 60) * SCROLL_GAIN * dur();
+  scrollTarget = Math.max(0, Math.min(span - 0.001, scrollTarget + step));
+}, {passive: false});
+
+function advanceScroll(dt) {
+  if (!scrollActive) return;
+  const span = BEATS.length * dur();
+  const idle = performance.now() - lastWheel;
+
+  // On release, commit to ONE destination and never revise it. Travelling far
+  // enough, or letting go with pace, advances to the next stop in the direction
+  // you were going; otherwise you fall back to where the gesture began. Once
+  // chosen, the pull only ever moves you toward it, so the timeline can never
+  // reverse under you.
+  if (idle > 120) {
+    if (committed === null) {
+      const fromPos = stopFor(gestureFrom);
+      const moved = (scrollTarget - fromPos) * (gestureDir || 1);
+      const advance = moved > dur() * COMMIT_FRAC || Math.abs(scrollVel) > dur() * 0.6;
+      const step = advance ? (gestureDir || 1) : 0;
+      committed = Math.max(0, Math.min(BEATS.length - 1, gestureFrom + step));
+    }
+    const snap = stopFor(committed);
+    const settle = Math.min(1, (idle - 120) / 260);
+    const pull = MAGNET * settle;
+    scrollTarget += (snap - scrollTarget) * (1 - Math.pow(1 - pull, dt * 60));
+  }
+
+  // Critically damped spring, frame-rate independent, no overshoot.
+  const omega = 2 * Math.PI * SCROLL_FREQ;
+  const f = 1 + 2 * dt * omega;
+  const oo = omega * omega, hoo = dt * oo, hhoo = dt * hoo;
+  const det = 1 / (f + hhoo);
+  const nx = (f * scrollPos + dt * scrollVel + hhoo * scrollTarget) * det;
+  const nv = (scrollVel + hoo * (scrollTarget - scrollPos)) * det;
+  scrollPos = nx; scrollVel = nv;
+  if (Math.abs(scrollTarget - scrollPos) < 1e-4 && Math.abs(scrollVel) < 1e-3) {
+    scrollPos = scrollTarget; scrollVel = 0;
+  }
+
+  beat = Math.min(BEATS.length - 1, Math.max(0, Math.floor(scrollPos / dur())));
+  t = scrollPos - beat * dur();
+  syncUI();
+  updateRail(scrollPos / span);
+}
+
+
+const matSel=document.getElementById('mat');
+for(const k of PKEYS){const o=document.createElement('option');o.value=k;o.textContent=PROFILES[k].label;matSel.append(o);}
+function loadMat(){const p=PROFILES[matSel.value];
+  document.getElementById('matinfo').textContent=`${classMats[matSel.value].length} material(s)`;
+  for(const [id,v] of [['met',p.metalness],['rgh',p.roughness],['env',p.env],['sat',p.sat]]){
+    document.getElementById(id).value=v; document.getElementById(id+'v').textContent=(+v).toFixed(2);}
+  const f=classMats[matSel.value][0];
+  document.getElementById('col').value='#'+(p.tint?new THREE.Color(p.tint).getHexString():(f?f.color.getHexString():'ffffff'));}
+matSel.onchange=loadMat;
+const liveMat=(id,key,apply)=>document.getElementById(id).addEventListener('input',(e)=>{
+  const k=matSel.value,v=parseFloat(e.target.value); PROFILES[k][key]=v;
+  for(const m of classMats[k]) { apply(m,v); syncTwin(m); }
+  document.getElementById(id+'v').textContent=v.toFixed(2);});
+liveMat('met','metalness',(m,v)=>m.metalness=v);
+liveMat('rgh','roughness',(m,v)=>m.roughness=v);
+liveMat('env','env',(m,v)=>m.envMapIntensity=v);
+liveMat('sat','sat',(m,v)=>{ if(!m.userData.cadColor) return;
+  m.color.copy(m.userData.cadColor); m.color.getHSL(hsl);
+  m.color.setHSL(hsl.h, Math.min(1,hsl.s*v), hsl.l); });
+document.getElementById('col').addEventListener('input',e=>{const k=matSel.value;
+  PROFILES[k].tint=e.target.value;
+  for(const m of classMats[k]) { m.color.set(e.target.value); syncTwin(m); }});
+document.getElementById('colreset').onclick=()=>{const k=matSel.value; PROFILES[k].tint=null;
+  for(const m of classMats[k]) { if(m.userData.cadColor) m.color.copy(m.userData.cadColor); syncTwin(m); }
+  loadMat();};
+loadMat();
+
+document.getElementById('dump').onclick=async()=>{
+  const out={materials:{},sequence:{speed,hold:HOLD,travel:TRAVEL,fill:FILL,spin:SPIN,orbit:orbitRate,prop:PROP_W},
+    spotlight:{shrink:SHRINK,dim:DIM,spot:SPOT},
+    lighting:{exposure:+renderer.toneMappingExposure.toFixed(3),env:+scene.environmentIntensity.toFixed(3),
+      ambient:BASE.hemi, bounce:BASE.bounce, rig:RIG,
+      background:'#'+scene.background.getHexString()},
+    spotlight:{power:SPOT, beam:BEAM, strike:STRIKE, darken:FADE, dim:DIM, shrink:SHRINK, stageX:STAGE_X}};
+  for(const k of PKEYS){const p=PROFILES[k];
+    out.materials[k]={tint:p.tint,metalness:p.metalness,roughness:p.roughness,env:p.env,sat:p.sat};}
+  const text=JSON.stringify(out,null,2);
+  try{await navigator.clipboard.writeText(text);document.getElementById('dumpmsg').textContent='copied';}
+  catch{document.getElementById('dumpmsg').textContent='clipboard blocked; see console';}
+  console.log('[hero-settings]',text);};
+
+function resize(){const w=innerWidth-320,h=innerHeight;
+  camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
+addEventListener('resize',resize); resize();
+</script>
+</body>
+</html>
